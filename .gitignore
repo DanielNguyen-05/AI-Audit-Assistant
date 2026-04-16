@@ -8,3 +8,4 @@ __pycache__/
 *.sqlite3
 *.db
 *.bak
+__init__.py
