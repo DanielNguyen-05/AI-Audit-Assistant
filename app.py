@@ -1,76 +1,78 @@
-# app.py
 import os
-from dotenv import load_dotenv
-from src.youtube_scraper import extract_playlist_id, get_playlist_videos, download_subtitles
-from src.chunking import process_vtt_to_chunks
-from src.embedding import build_faiss_index
-from src.llm_agent import CourseAssistant
+import streamlit as st
+from src.vlm_processor import process_pdf_to_json
+from src.rag_engine import create_vector_store
+from src.agent import create_audit_agent
 
-load_dotenv()
-YOUTUBE_KEY = os.getenv("YOUTUBE_API_KEY")
-GEMINI_KEY = os.getenv("GEMINI_API_KEY")
+# --- Cấu hình giao diện ---
+st.set_page_config(page_title="AI Audit Assistant", page_icon="📊", layout="wide")
+st.title("📊 Trợ lý Kiểm toán Đa phương thức (Agentic RAG)")
+st.markdown("Hỗ trợ tự động đọc chứng từ scan và đối chiếu chuẩn mực (VAS/IFRS).")
 
-def ingest_pipeline():
-    print("\n--- BƯỚC 1: XÂY DỰNG KNOWLEDGE BASE ---")
-    url = input("Nhập URL của Playlist YouTube: ")
-    playlist_id = extract_playlist_id(url)
-    
-    if not playlist_id:
-        print("Lỗi: URL không hợp lệ.")
-        return
-        
-    print("1. Đang cào dữ liệu Playlist...")
-    videos = get_playlist_videos(playlist_id, YOUTUBE_KEY)
-    
-    print(f"2. Bắt đầu tải phụ đề cho {len(videos)} video...")
-    for vid in videos:
-        download_subtitles(vid['video_id'])
-        
-    print("3. Làm sạch và Chunking dữ liệu (Sliding Window)...")
-    process_vtt_to_chunks()
-    
-    print("4. Nhúng Vector và tạo FAISS Index...")
-    build_faiss_index()
-    print("ĐÃ HOÀN TẤT XÂY DỰNG DỮ LIỆU!\n")
+# --- Tạo thư mục tạm nếu chưa có ---
+os.makedirs("data/raw", exist_ok=True)
+os.makedirs("data/processed", exist_ok=True)
+os.makedirs("data/vector_store", exist_ok=True)
 
-def chat_pipeline():
-    print("\n--- BƯỚC 2: RAG CHATBOT ---")
-    if not os.path.exists("data/vector_db/course_index.index"):
-        print("Chưa có cơ sở dữ liệu. Vui lòng chạy tính năng 1 trước!")
-        return
-        
-    print("Đang khởi động Trợ lý AI...")
-    assistant = CourseAssistant(GEMINI_KEY)
+# --- Sidebar: Xử lý file Upload ---
+with st.sidebar:
+    st.header("1. Tải lên Chứng từ")
+    uploaded_file = st.file_uploader("Upload file PDF (Hợp đồng, BCTC scan...)", type=["pdf"])
     
-    while True:
-        query = input("\nBạn muốn hỏi gì? (Gõ 'exit' để thoát): ")
-        if query.lower() == 'exit': break
-        
-        print("\n⏳ Đang suy nghĩ...")
-        answer, sources = assistant.ask(query)
-        
-        print("\n🤖 TRỢ LÝ AI TRẢ LỜI:")
-        print("-" * 50)
-        print(answer)
-        print("-" * 50)
-        print("📺 XEM CHI TIẾT TẠI VIDEO:")
-        for i, url in enumerate(sources):
-            print(f"[Nguồn {i+1}]: {url}")
+    if uploaded_file is not None:
+        file_path = os.path.join("data/raw", uploaded_file.name)
+        with open(file_path, "wb") as f:
+            f.write(uploaded_file.getbuffer())
+            
+        if st.button("🚀 Xử lý Dữ liệu (VLM + RAG)"):
+            with st.status("Đang phân tích tài liệu...", expanded=True) as status:
+                try:
+                    st.write("1. Đang dùng AI Vision đọc ảnh PDF...")
+                    json_path = process_pdf_to_json(file_path, "data/processed")
+                    
+                    st.write("2. Đang băm nhỏ và lưu vào Vector Database...")
+                    faiss_path = create_vector_store(json_path)
+                    
+                    # Lưu đường dẫn FAISS vào session để dùng cho chat
+                    st.session_state["faiss_path"] = faiss_path
+                    st.session_state["agent"] = create_audit_agent(faiss_path)
+                    
+                    status.update(label="Xử lý thành công!", state="complete", expanded=False)
+                    st.success("Tài liệu đã sẵn sàng để tra cứu!")
+                except Exception as e:
+                    status.update(label="Có lỗi xảy ra", state="error")
+                    st.error(f"Lỗi: {e}")
 
-if __name__ == "__main__":
-    while True:
-        print("\n" + "="*40)
-        print("HỆ THỐNG RAG CHO KHÓA HỌC YOUTUBE")
-        print("1. Tải Playlist & Xây dựng Knowledge Base")
-        print("2. Chat với AI Trợ giảng")
-        print("3. Thoát")
-        
-        choice = input("Chọn chức năng (1/2/3): ")
-        if choice == '1':
-            ingest_pipeline()
-        elif choice == '2':
-            chat_pipeline()
-        elif choice == '3':
-            break
-        else:
-            print("Lựa chọn không hợp lệ.")
+# --- Màn hình chính: Giao diện Chat ---
+st.header("2. Không gian Truy vấn AI")
+
+# Khởi tạo lịch sử chat
+if "messages" not in st.session_state:
+    st.session_state.messages = [
+        {"role": "assistant", "content": "Xin chào! Tôi là Trợ lý Kiểm toán AI. Hãy hỏi tôi về các điều khoản ghi nhận doanh thu hoặc các bút toán trong tài liệu bạn vừa tải lên."}
+    ]
+
+# Hiển thị lịch sử chat
+for message in st.session_state.messages:
+    with st.chat_message(message["role"]):
+        st.markdown(message["content"])
+
+# Khung nhập câu hỏi
+if prompt := st.chat_input("VD: Theo hợp đồng vừa upload, doanh thu được ghi nhận khi nào?"):
+    if "agent" not in st.session_state:
+        st.warning("Vui lòng upload và xử lý tài liệu ở cột bên trái trước khi hỏi!")
+    else:
+        # Hiển thị câu hỏi của user
+        st.session_state.messages.append({"role": "user", "content": prompt})
+        with st.chat_message("user"):
+            st.markdown(prompt)
+
+        # AI suy luận và trả lời
+        with st.chat_message("assistant"):
+            with st.spinner("Đang suy luận và tra cứu chứng từ..."):
+                agent = st.session_state["agent"]
+                response = agent.invoke({"messages": [("user", prompt)]})
+                answer = response["messages"][-1].content
+                
+                st.markdown(answer)
+                st.session_state.messages.append({"role": "assistant", "content": answer})

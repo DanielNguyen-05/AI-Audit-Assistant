@@ -1,0 +1,10 @@
+system:
+  data_raw_dir: "data/raw"
+  data_processed_dir: "data/processed"
+  vector_store_dir: "data/vector_store"
+
+rag:
+  chunk_size: 1000
+  chunk_overlap: 200
+  embedding_model: "sentence-transformers/all-MiniLM-L6-v2"
+  top_k: 3 
