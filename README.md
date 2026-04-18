@@ -1,9 +1,3 @@
-Chào bạn, với tư cách là Business Analyst và Product Owner, một file `README.md` chuyên nghiệp không chỉ giúp giảng viên đánh giá cao khả năng quản lý dự án mà còn chứng minh được tính thực tiễn và quy trình kỹ thuật bài bản của nhóm.
-
-Dưới đây là nội dung file `README.md` đã được tối ưu hóa hoàn toàn cho dự án **AI Audit Assistant**, bám sát các công nghệ mới nhất (LangGraph, FPT AI) mà chúng ta đã triển khai.
-
------
-
 # 📊 AI Audit Assistant - Trợ lý Kiểm toán Đa phương thức
 
 **AI Audit Assistant** là một hệ thống Trợ lý Kiểm toán thông minh dựa trên kiến trúc **Agentic Multimodal RAG**. Dự án được thiết kế để giải quyết bài toán cốt lõi trong ngành kiểm toán: Tự động hóa việc trích xuất dữ liệu từ chứng từ scan và đối chiếu với các chuẩn mực kế toán (VAS/IFRS), từ đó tối ưu hóa tính kịp thời trong việc công bố báo cáo tài chính.
@@ -52,7 +46,6 @@ source venv/bin/activate  # macOS/Linux
 
 # Cài đặt thư viện
 pip install -r requirements.txt
-pip install langgraph langchain-openai
 ```
 
 ### 3\. Cấu hình API Key
